@@ -250,8 +250,8 @@ export function createOrderbookSubscription(params: {
           }
           if (pendingTrades.length > 0) scheduleCommit();
         }
-      } catch {
-        // ignore malformed
+      } catch (err) {
+        console.warn("orderbook: failed to parse WS message", err);
       }
     };
 
@@ -297,8 +297,8 @@ export function createOrderbookSubscription(params: {
                 subscription: { type: "trades", coin },
               }),
             );
-          } catch {
-            // ignore
+          } catch (err) {
+            console.warn("orderbook: failed to send unsubscribe on close", err);
           }
         }
         ws.close();
