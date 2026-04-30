@@ -18,6 +18,7 @@ import {
   formatTotal,
 } from "@/lib/format";
 import { AboutPanel } from "./AboutPanel";
+import { useOnline } from "@/lib/use-online";
 
 const COINS: Coin[] = ["BTC", "ETH"];
 const SIG_FIGS: NSigFigs[] = [2, 3, 4, 5];
@@ -92,7 +93,8 @@ export function OrderbookWidget() {
     [snapshot.asks],
   );
 
-  const isLive = status === "open" && snapshot.lastUpdate > 0;
+  const online = useOnline();
+  const isLive = online && status === "open" && snapshot.lastUpdate > 0;
 
   return (
     <div className="w-[420px] max-w-full bg-bg-panel border border-bg-border rounded-md shadow-2xl overflow-hidden">
@@ -106,6 +108,7 @@ export function OrderbookWidget() {
             onCoin={setCoin}
             onNSigFigs={setNSigFigs}
             isLive={isLive}
+            online={online}
             status={status}
             refPrice={snapshot.midPrice}
           />
@@ -260,6 +263,7 @@ function Header({
   onCoin,
   onNSigFigs,
   isLive,
+  online,
   status,
   refPrice,
 }: {
@@ -268,6 +272,7 @@ function Header({
   onCoin: (c: Coin) => void;
   onNSigFigs: (n: NSigFigs) => void;
   isLive: boolean;
+  online: boolean;
   status: ConnStatus;
   refPrice: number | null;
 }) {
@@ -304,20 +309,23 @@ function Header({
         </select>
       </div>
 
-      <StatusDot isLive={isLive} status={status} />
+      <StatusDot isLive={isLive} online={online} status={status} />
     </div>
   );
 }
 
 function StatusDot({
   isLive,
+  online,
   status,
 }: {
   isLive: boolean;
+  online: boolean;
   status: ConnStatus;
 }) {
-  const label =
-    status === "open"
+  const label = !online
+    ? "Offline"
+    : status === "open"
       ? isLive
         ? "Live"
         : "Subscribed"
@@ -328,11 +336,13 @@ function StatusDot({
           : status === "error"
             ? "Error"
             : "Idle";
-  const dot = isLive
-    ? "bg-bid"
-    : status === "connecting" || status === "closed"
-      ? "bg-yellow-400"
-      : "bg-text-muted";
+  const dot = !online
+    ? "bg-ask"
+    : isLive
+      ? "bg-bid"
+      : status === "connecting" || status === "closed"
+        ? "bg-yellow-400"
+        : "bg-text-muted";
   return (
     <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
       <span className="relative flex h-2 w-2">
