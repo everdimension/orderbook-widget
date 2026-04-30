@@ -295,14 +295,15 @@ function Header({
           aria-label="Price precision (significant figures)"
           value={nSigFigs}
           onChange={(e) => onNSigFigs(Number(e.target.value) as NSigFigs)}
-          className="bg-bg-row border border-bg-border text-text-secondary text-xs rounded pl-2 pr-6 py-1 focus:outline-none focus:border-text-secondary"
+          className="bg-bg-row border border-bg-border text-text-secondary text-sm rounded pl-2 pr-6 py-1 focus:outline-none focus:border-text-secondary"
         >
           {SIG_FIGS.map((n) => {
             const tick = refPrice ? tickSizeForNSigFigs(refPrice, n) : 0;
             const tickLabel = tick ? ` · ${formatTickSize(tick)}` : "";
             return (
               <option key={n} value={n}>
-                {n} sig figs{tickLabel}
+                {n}
+                {tickLabel}
               </option>
             );
           })}
