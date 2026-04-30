@@ -1,37 +1,100 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useOrderbook } from "@/hooks/useOrderbook";
-import type { NSigFigs, Symbol } from "@/lib/types";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
+  createOrderbookSubscription,
+  EMPTY_SNAPSHOT,
+  type Coin,
+  type ConnStatus,
+  type NSigFigs,
+  type Snapshot,
+} from "@/lib/orderbook";
+import {
+  formatPrice,
+  formatSize,
   formatSpreadAbs,
   formatSpreadPct,
-  formatTickSize,
-  tickSizeForNSigFigs,
+  formatTotal,
 } from "@/lib/format";
-import { OrderbookRow } from "./OrderbookRow";
 
-const SYMBOLS: Symbol[] = ["BTC", "ETH"];
+const COINS: Coin[] = ["BTC", "ETH"];
 const SIG_FIGS: NSigFigs[] = [2, 3, 4, 5];
 
+/**
+ * Thin React adapter over the orderbook subscription store. Creates a
+ * subscription per (coin, nSigFigs), tears it down on change/unmount.
+ *
+ * useSyncExternalStore was considered but rejected: with dynamic params it
+ * requires useMemo for the store + a separate cleanup effect, which is racy
+ * under strict mode. This useEffect bridge is strict-mode safe by construction.
+ */
+function useOrderbook(
+  coin: Coin,
+  nSigFigs: NSigFigs,
+): { snapshot: Snapshot; status: ConnStatus } {
+  const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_SNAPSHOT);
+  const [status, setStatus] = useState<ConnStatus>("idle");
+
+  useEffect(() => {
+    const sub = createOrderbookSubscription({ coin, nSigFigs });
+    setSnapshot(sub.getSnapshot());
+    setStatus(sub.getStatus());
+    const unsubscribe = sub.subscribe(() => {
+      setSnapshot(sub.getSnapshot());
+      setStatus(sub.getStatus());
+    });
+    return () => {
+      unsubscribe();
+      sub.close();
+    };
+  }, [coin, nSigFigs]);
+
+  return { snapshot, status };
+}
+
+/**
+ * Hyperliquid's nSigFigs rounds prices to N significant figures, producing a
+ * tick of 10^(integerDigits − N) at the reference price.
+ *
+ * BTC ~$75k, nSigFigs=5 → 10^(5−5) = $1.
+ * ETH ~$3.5k, nSigFigs=5 → 10^(4−5) = $0.10.
+ */
+function tickSizeForNSigFigs(refPrice: number, nSigFigs: number): number {
+  if (!Number.isFinite(refPrice) || refPrice <= 0) return 0;
+  const integerDigits = Math.floor(Math.log10(refPrice)) + 1;
+  return Math.pow(10, integerDigits - nSigFigs);
+}
+
+function formatTickSize(tick: number): string {
+  if (!Number.isFinite(tick) || tick <= 0) return "";
+  if (tick >= 1) {
+    return `$${tick.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  }
+  const decimals = Math.max(0, -Math.floor(Math.log10(tick)));
+  return `$${tick.toFixed(decimals)}`;
+}
+
 export function OrderbookWidget() {
-  const [symbol, setSymbol] = useState<Symbol>("BTC");
+  const [coin, setCoin] = useState<Coin>("BTC");
   const [nSigFigs, setNSigFigs] = useState<NSigFigs>(5);
 
-  const { snapshot, status } = useOrderbook({ symbol, nSigFigs });
+  const { snapshot, status } = useOrderbook(coin, nSigFigs);
 
   // Asks come ascending from the API; display best ask at the bottom (closest
   // to the spread row) by reversing.
-  const asksDesc = useMemo(() => snapshot.asks.slice().reverse(), [snapshot.asks]);
+  const asksDesc = useMemo(
+    () => snapshot.asks.slice().reverse(),
+    [snapshot.asks],
+  );
 
   const isLive = status === "open" && snapshot.lastUpdate > 0;
 
   return (
     <div className="w-[420px] max-w-full bg-bg-panel border border-bg-border rounded-md shadow-2xl overflow-hidden">
       <Header
-        symbol={symbol}
+        coin={coin}
         nSigFigs={nSigFigs}
-        onSymbol={setSymbol}
+        onCoin={setCoin}
         onNSigFigs={setNSigFigs}
         isLive={isLive}
         status={status}
@@ -58,11 +121,7 @@ export function OrderbookWidget() {
           )}
         </div>
 
-        <SpreadRow
-          spread={snapshot.spread}
-          spreadPct={snapshot.spreadPct}
-          midPrice={snapshot.midPrice}
-        />
+        <SpreadRow spread={snapshot.spread} spreadPct={snapshot.spreadPct} />
 
         <div className="flex flex-col">
           {snapshot.bids.length === 0 ? (
@@ -86,34 +145,34 @@ export function OrderbookWidget() {
 }
 
 function Header({
-  symbol,
+  coin,
   nSigFigs,
-  onSymbol,
+  onCoin,
   onNSigFigs,
   isLive,
   status,
   refPrice,
 }: {
-  symbol: Symbol;
+  coin: Coin;
   nSigFigs: NSigFigs;
-  onSymbol: (s: Symbol) => void;
+  onCoin: (c: Coin) => void;
   onNSigFigs: (n: NSigFigs) => void;
   isLive: boolean;
-  status: string;
+  status: ConnStatus;
   refPrice: number | null;
 }) {
   return (
     <div className="flex items-center justify-between px-3 py-2.5 border-b border-bg-border bg-bg-panel">
       <div className="flex items-center gap-2">
         <select
-          aria-label="Symbol"
-          value={symbol}
-          onChange={(e) => onSymbol(e.target.value as Symbol)}
+          aria-label="Coin"
+          value={coin}
+          onChange={(e) => onCoin(e.target.value as Coin)}
           className="bg-bg-row border border-bg-border text-text-primary text-sm rounded px-2 py-1 font-medium focus:outline-none focus:border-text-secondary"
         >
-          {SYMBOLS.map((s) => (
-            <option key={s} value={s}>
-              {s}-USD
+          {COINS.map((c) => (
+            <option key={c} value={c}>
+              {c}-USD
             </option>
           ))}
         </select>
@@ -140,7 +199,13 @@ function Header({
   );
 }
 
-function StatusDot({ isLive, status }: { isLive: boolean; status: string }) {
+function StatusDot({
+  isLive,
+  status,
+}: {
+  isLive: boolean;
+  status: ConnStatus;
+}) {
   const label =
     status === "open"
       ? isLive
@@ -160,7 +225,7 @@ function StatusDot({ isLive, status }: { isLive: boolean; status: string }) {
       : "bg-text-muted";
   return (
     <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
-      <span className={`relative flex h-2 w-2`}>
+      <span className="relative flex h-2 w-2">
         {isLive && (
           <span className="absolute inline-flex h-full w-full rounded-full bg-bid opacity-50 animate-ping" />
         )}
@@ -184,11 +249,9 @@ function ColumnHeader() {
 function SpreadRow({
   spread,
   spreadPct,
-  midPrice,
 }: {
   spread: number | null;
   spreadPct: number | null;
-  midPrice: number | null;
 }) {
   return (
     <div className="grid grid-cols-3 gap-2 px-3 py-2 text-xs border-y border-bg-border bg-bg-row">
@@ -199,25 +262,58 @@ function SpreadRow({
         {spread != null ? formatSpreadAbs(spread) : "—"}
       </span>
       <span className="text-right tabular-nums text-text-secondary">
-        {spreadPct != null
-          ? formatSpreadPct(spreadPct)
-          : midPrice != null
-            ? "—"
-            : "—"}
+        {spreadPct != null ? formatSpreadPct(spreadPct) : "—"}
       </span>
     </div>
   );
 }
 
-function Skeleton({ side }: { side: "bid" | "ask" }) {
+type Side = "bid" | "ask";
+
+const OrderbookRow = memo(function OrderbookRow({
+  pxStr,
+  sz,
+  total,
+  depthPct,
+  side,
+}: {
+  pxStr: string;
+  sz: number;
+  total: number;
+  depthPct: number;
+  side: Side;
+}) {
+  const isBid = side === "bid";
+  return (
+    <div className="relative grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight">
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 left-0 depth-bar ${isBid ? "bg-bid-bar" : "bg-ask-bar"}`}
+        style={{ ["--depth" as string]: `${depthPct}%` }}
+      />
+      <span
+        className={`relative tabular-nums ${isBid ? "text-bid" : "text-ask"}`}
+      >
+        {formatPrice(pxStr)}
+      </span>
+      <span className="relative tabular-nums text-text-primary text-right">
+        {formatSize(sz)}
+      </span>
+      <span className="relative tabular-nums text-text-secondary text-right">
+        {formatTotal(total)}
+      </span>
+    </div>
+  );
+});
+
+function Skeleton({ side }: { side: Side }) {
   const isBid = side === "bid";
   const bg = isBid ? "bg-bid-bar" : "bg-ask-bar";
   return (
     <div className="flex flex-col">
       {Array.from({ length: 14 }).map((_, i) => {
         // Mimic the cumulative-depth pyramid: bars grow as you move away
-        // from the spread. Asks are rendered top-to-bottom = far → near,
-        // bids top-to-bottom = near → far.
+        // from the spread. Asks render top→bottom = far→near; bids near→far.
         const depthPct = isBid ? ((i + 1) / 14) * 100 : ((14 - i) / 14) * 100;
         return (
           <div
