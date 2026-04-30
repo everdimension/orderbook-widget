@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #0b0e11;
+  color: #e6edf3;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+  The depth bar uses a CSS variable for width and a transition so that
+  bar widths animate smoothly even when React replaces the row contents.
+*/
+.depth-bar {
+  width: var(--depth, 0%);
+  transition: width 110ms linear;
+  will-change: width;
+}
