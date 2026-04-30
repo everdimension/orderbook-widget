@@ -23,3 +23,78 @@ body {
   transition: width 110ms linear;
   will-change: width;
 }
+
+/*
+  Select styling:
+  - Baseline (every browser): hide the native arrow, draw our own chevron.
+  - Chrome 130+: appearance: base-select unlocks ::picker(select) so we can
+    style the popup itself with our dark theme. Other browsers ignore these
+    rules and fall back to the baseline + native popup.
+*/
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 10px;
+  padding-right: 1.5rem;
+}
+
+/*
+  Baseline option colors so the native popup (used in Safari/Firefox or
+  Chrome without base-select) doesn't render black-on-white system colors
+  inside our dark theme.
+*/
+option {
+  background-color: #12161c;
+  color: #e6edf3;
+}
+
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  /* base-select renders a built-in dropdown arrow; hide it so only our
+     custom chevron (background-image on the select) shows. */
+  select::picker-icon {
+    display: none;
+  }
+
+  /* Popup container */
+  ::picker(select) {
+    background: #12161c;
+    border: 1px solid #1f2630;
+    border-radius: 6px;
+    padding: 4px;
+    margin-top: 4px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    /* Chrome paints a default border around base-select popups; clear it. */
+    outline: none;
+  }
+
+  ::picker(select) option {
+    padding: 6px 10px;
+    border-radius: 4px;
+    color: #e6edf3;
+    background: transparent;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  ::picker(select) option:hover {
+    background: #161b22;
+  }
+
+  ::picker(select) option:checked {
+    background: #1f2630;
+    color: #e6edf3;
+  }
+
+  /* The native check glyph that base-select renders on the selected option. */
+  ::picker(select) option::checkmark {
+    display: none;
+  }
+}

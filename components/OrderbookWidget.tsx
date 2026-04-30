@@ -278,7 +278,7 @@ function Header({
           aria-label="Coin"
           value={coin}
           onChange={(e) => onCoin(e.target.value as Coin)}
-          className="bg-bg-row border border-bg-border text-text-primary text-sm rounded px-2 py-1 font-medium focus:outline-none focus:border-text-secondary"
+          className="bg-bg-row border border-bg-border text-text-primary text-sm rounded pl-2 pr-6 py-1 font-medium focus:outline-none focus:border-text-secondary"
         >
           {COINS.map((c) => (
             <option key={c} value={c}>
@@ -290,7 +290,7 @@ function Header({
           aria-label="Price precision (significant figures)"
           value={nSigFigs}
           onChange={(e) => onNSigFigs(Number(e.target.value) as NSigFigs)}
-          className="bg-bg-row border border-bg-border text-text-secondary text-xs rounded px-2 py-1 focus:outline-none focus:border-text-secondary"
+          className="bg-bg-row border border-bg-border text-text-secondary text-xs rounded pl-2 pr-6 py-1 focus:outline-none focus:border-text-secondary"
         >
           {SIG_FIGS.map((n) => {
             const tick = refPrice ? tickSizeForNSigFigs(refPrice, n) : 0;
