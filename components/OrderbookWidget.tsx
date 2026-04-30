@@ -479,7 +479,7 @@ function Skeleton() {
   // by the status line in the spread row and the dot in the header.
   return (
     <div className="flex flex-col">
-      {Array.from({ length: 14 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <div
           key={i}
           className="grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight"

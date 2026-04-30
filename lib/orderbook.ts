@@ -2,7 +2,7 @@ import { throttle } from "./throttle";
 
 const WS_URL = "wss://api.hyperliquid.xyz/ws";
 const COMMIT_INTERVAL_MS = 100;
-const ROWS_PER_SIDE = 14;
+const ROWS_PER_SIDE = 12;
 const RECONNECT_INITIAL_MS = 500;
 const RECONNECT_MAX_MS = 8000;
 /**

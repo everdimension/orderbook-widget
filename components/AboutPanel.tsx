@@ -51,7 +51,15 @@ export function AboutPanel() {
       </section>
 
       <p className="text-text-muted text-[11.5px]">
-        Built with Next.js 15, React 19, and Tailwind CSS.
+        Built with Next.js 15, React 19, and Tailwind CSS.{" "}
+        <a
+          href="https://github.com/everdimension/orderbook-widget"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-text-secondary underline underline-offset-2 hover:text-text-primary"
+        >
+          Source on GitHub →
+        </a>
       </p>
     </div>
   );
