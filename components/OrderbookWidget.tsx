@@ -106,7 +106,7 @@ export function OrderbookWidget() {
       <div className="flex flex-col">
         <div className="flex flex-col">
           {asksDesc.length === 0 ? (
-            <Skeleton side="ask" />
+            <Skeleton />
           ) : (
             asksDesc.map((row) => (
               <OrderbookRow
@@ -121,11 +121,15 @@ export function OrderbookWidget() {
           )}
         </div>
 
-        <SpreadRow spread={snapshot.spread} spreadPct={snapshot.spreadPct} />
+        <SpreadRow
+          spread={snapshot.spread}
+          spreadPct={snapshot.spreadPct}
+          status={status}
+        />
 
         <div className="flex flex-col">
           {snapshot.bids.length === 0 ? (
-            <Skeleton side="bid" />
+            <Skeleton />
           ) : (
             snapshot.bids.map((row) => (
               <OrderbookRow
@@ -249,23 +253,48 @@ function ColumnHeader() {
 function SpreadRow({
   spread,
   spreadPct,
+  status,
 }: {
   spread: number | null;
   spreadPct: number | null;
+  status: ConnStatus;
 }) {
+  // Pre-data: take over the whole row with a modest status line so the
+  // loading state has somewhere to speak from. Same height as the live row
+  // (px-3 py-2 text-xs), so no layout shift when data arrives.
+  if (spread == null) {
+    return (
+      <div className="px-3 py-2 text-xs border-y border-bg-border bg-bg-row text-text-muted">
+        {emptyStatusMessage(status)}
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-3 gap-2 px-3 py-2 text-xs border-y border-bg-border bg-bg-row">
       <span className="text-text-muted uppercase tracking-wide text-[10.5px] self-center">
         Spread
       </span>
       <span className="text-right tabular-nums text-text-primary">
-        {spread != null ? formatSpreadAbs(spread) : "—"}
+        {formatSpreadAbs(spread)}
       </span>
       <span className="text-right tabular-nums text-text-secondary">
         {spreadPct != null ? formatSpreadPct(spreadPct) : "—"}
       </span>
     </div>
   );
+}
+
+function emptyStatusMessage(status: ConnStatus): string {
+  switch (status) {
+    case "error":
+      return "Connection error — retrying…";
+    case "closed":
+      return "Reconnecting…";
+    case "open":
+      return "Awaiting first snapshot…";
+    default:
+      return "Connecting to Hyperliquid…";
+  }
 }
 
 type Side = "bid" | "ask";
@@ -306,31 +335,22 @@ const OrderbookRow = memo(function OrderbookRow({
   );
 });
 
-function Skeleton({ side }: { side: Side }) {
-  const isBid = side === "bid";
-  const bg = isBid ? "bg-bid-bar" : "bg-ask-bar";
+function Skeleton() {
+  // Empty rows preserve the layout (no jump when real data arrives) but
+  // intentionally don't pretend to be a fake orderbook — loading is signaled
+  // by the status line in the spread row and the dot in the header.
   return (
     <div className="flex flex-col">
-      {Array.from({ length: 14 }).map((_, i) => {
-        // Mimic the cumulative-depth pyramid: bars grow as you move away
-        // from the spread. Asks render top→bottom = far→near; bids near→far.
-        const depthPct = isBid ? ((i + 1) / 14) * 100 : ((14 - i) / 14) * 100;
-        return (
-          <div
-            key={i}
-            className="relative grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight"
-          >
-            <span
-              aria-hidden
-              className={`absolute inset-y-0 left-0 depth-bar ${bg}`}
-              style={{ ["--depth" as string]: `${depthPct}%` }}
-            />
-            <span className="relative">&nbsp;</span>
-            <span className="relative">&nbsp;</span>
-            <span className="relative">&nbsp;</span>
-          </div>
-        );
-      })}
+      {Array.from({ length: 14 }).map((_, i) => (
+        <div
+          key={i}
+          className="grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight"
+        >
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+          <span>&nbsp;</span>
+        </div>
+      ))}
     </div>
   );
 }

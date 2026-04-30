@@ -4,8 +4,8 @@ const sizeFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const totalFormatter = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
+  minimumFractionDigits: 5,
+  maximumFractionDigits: 5,
 });
 
 const spreadAbsFormatter = new Intl.NumberFormat("en-US", {
