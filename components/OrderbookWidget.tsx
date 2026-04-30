@@ -17,6 +17,7 @@ import {
   formatSpreadPct,
   formatTotal,
 } from "@/lib/format";
+import { AboutPanel } from "./AboutPanel";
 
 const COINS: Coin[] = ["BTC", "ETH"];
 const SIG_FIGS: NSigFigs[] = [2, 3, 4, 5];
@@ -75,7 +76,10 @@ function formatTickSize(tick: number): string {
   return `$${tick.toFixed(decimals)}`;
 }
 
+type Tab = "orderbook" | "about";
+
 export function OrderbookWidget() {
+  const [tab, setTab] = useState<Tab>("orderbook");
   const [coin, setCoin] = useState<Coin>("BTC");
   const [nSigFigs, setNSigFigs] = useState<NSigFigs>(5);
 
@@ -92,64 +96,109 @@ export function OrderbookWidget() {
 
   return (
     <div className="w-[420px] max-w-full bg-bg-panel border border-bg-border rounded-md shadow-2xl overflow-hidden">
-      <Header
-        coin={coin}
-        nSigFigs={nSigFigs}
-        onCoin={setCoin}
-        onNSigFigs={setNSigFigs}
-        isLive={isLive}
-        status={status}
-        refPrice={snapshot.midPrice}
-      />
+      <TabBar tab={tab} onTab={setTab} />
 
-      <ColumnHeader />
+      {tab === "orderbook" ? (
+        <>
+          <Header
+            coin={coin}
+            nSigFigs={nSigFigs}
+            onCoin={setCoin}
+            onNSigFigs={setNSigFigs}
+            isLive={isLive}
+            status={status}
+            refPrice={snapshot.midPrice}
+          />
 
-      <div className="flex flex-col">
-        <div className="flex flex-col">
-          {asksDesc.length === 0 ? (
-            <Skeleton />
-          ) : (
-            asksDesc.map((row) => (
-              <OrderbookRow
-                key={row.pxStr}
-                pxStr={row.pxStr}
-                sz={row.sz}
-                total={row.total}
-                depthPct={(row.total / snapshot.maxTotal) * 100}
-                side="ask"
-                flashAt={row.flashAt}
-              />
-            ))
-          )}
-        </div>
+          <ColumnHeader />
 
-        <SpreadRow
-          spread={snapshot.spread}
-          spreadPct={snapshot.spreadPct}
-          status={status}
-        />
+          <div className="flex flex-col">
+            <div className="flex flex-col">
+              {asksDesc.length === 0 ? (
+                <Skeleton />
+              ) : (
+                asksDesc.map((row) => (
+                  <OrderbookRow
+                    key={row.pxStr}
+                    pxStr={row.pxStr}
+                    sz={row.sz}
+                    total={row.total}
+                    depthPct={(row.total / snapshot.maxTotal) * 100}
+                    side="ask"
+                    flashAt={row.flashAt}
+                  />
+                ))
+              )}
+            </div>
 
-        <div className="flex flex-col">
-          {snapshot.bids.length === 0 ? (
-            <Skeleton />
-          ) : (
-            snapshot.bids.map((row) => (
-              <OrderbookRow
-                key={row.pxStr}
-                pxStr={row.pxStr}
-                sz={row.sz}
-                total={row.total}
-                depthPct={(row.total / snapshot.maxTotal) * 100}
-                side="bid"
-                flashAt={row.flashAt}
-              />
-            ))
-          )}
-        </div>
-      </div>
+            <SpreadRow
+              spread={snapshot.spread}
+              spreadPct={snapshot.spreadPct}
+              status={status}
+            />
 
-      <LastTradeFooter lastTrades={snapshot.lastTrades} coin={coin} />
+            <div className="flex flex-col">
+              {snapshot.bids.length === 0 ? (
+                <Skeleton />
+              ) : (
+                snapshot.bids.map((row) => (
+                  <OrderbookRow
+                    key={row.pxStr}
+                    pxStr={row.pxStr}
+                    sz={row.sz}
+                    total={row.total}
+                    depthPct={(row.total / snapshot.maxTotal) * 100}
+                    side="bid"
+                    flashAt={row.flashAt}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          <LastTradeFooter lastTrades={snapshot.lastTrades} coin={coin} />
+        </>
+      ) : (
+        <AboutPanel />
+      )}
     </div>
+  );
+}
+
+function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+  return (
+    <div className="flex border-b border-bg-border bg-bg-panel">
+      <TabButton active={tab === "orderbook"} onClick={() => onTab("orderbook")}>
+        Order book
+      </TabButton>
+      <TabButton active={tab === "about"} onClick={() => onTab("about")}>
+        About
+      </TabButton>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2.5 text-[11px] uppercase tracking-wide transition-colors border-b-2 ${
+        active
+          ? "text-text-primary border-text-primary"
+          : "text-text-muted border-transparent hover:text-text-secondary"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
