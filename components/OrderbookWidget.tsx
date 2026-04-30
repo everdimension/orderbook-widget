@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   createOrderbookSubscription,
   EMPTY_SNAPSHOT,
@@ -8,6 +8,7 @@ import {
   type ConnStatus,
   type NSigFigs,
   type Snapshot,
+  type Trade,
 } from "@/lib/orderbook";
 import {
   formatPrice,
@@ -116,6 +117,7 @@ export function OrderbookWidget() {
                 total={row.total}
                 depthPct={(row.total / snapshot.maxTotal) * 100}
                 side="ask"
+                flashAt={row.flashAt}
               />
             ))
           )}
@@ -139,11 +141,66 @@ export function OrderbookWidget() {
                 total={row.total}
                 depthPct={(row.total / snapshot.maxTotal) * 100}
                 side="bid"
+                flashAt={row.flashAt}
               />
             ))
           )}
         </div>
       </div>
+
+      <LastTradeFooter lastTrades={snapshot.lastTrades} coin={coin} />
+    </div>
+  );
+}
+
+function LastTradeFooter({
+  lastTrades,
+  coin,
+}: {
+  lastTrades: Trade[];
+  coin: Coin;
+}) {
+  // lastTrades is a per-commit window (often empty), so we sticky-cache the
+  // most recent trade here for the footer.
+  const [trade, setTrade] = useState<Trade | null>(null);
+  useEffect(() => {
+    setTrade(null);
+  }, [coin]);
+  useEffect(() => {
+    if (lastTrades.length > 0) setTrade(lastTrades[lastTrades.length - 1]);
+  }, [lastTrades]);
+
+  // Re-render at 1Hz so the "Xs ago" label advances. Lightweight when mounted.
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!trade) return;
+    const id = setInterval(() => force((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [trade]);
+
+  return (
+    <div className="px-3 py-1.5 border-t border-bg-border bg-bg-panel text-[11px] text-text-muted flex items-center gap-2">
+      <span className="uppercase tracking-wide">Last trade</span>
+      {trade ? (
+        <>
+          <span
+            className={`tabular-nums ${trade.side === "B" ? "text-bid" : "text-ask"}`}
+          >
+            {trade.side === "B" ? "↑ buy" : "↓ sell"}
+          </span>
+          <span className="tabular-nums text-text-primary">
+            {formatPrice(trade.pxStr)}
+          </span>
+          <span className="tabular-nums">
+            {trade.sz} {coin}
+          </span>
+          <span className="ml-auto tabular-nums">
+            {Math.max(0, Math.round((Date.now() - trade.time) / 1000))}s ago
+          </span>
+        </>
+      ) : (
+        <span>—</span>
+      )}
     </div>
   );
 }
@@ -299,22 +356,54 @@ function emptyStatusMessage(status: ConnStatus): string {
 
 type Side = "bid" | "ask";
 
+const FLASH_DURATION_MS = 450;
+const FLASH_KEYFRAMES_BID: Keyframe[] = [
+  { backgroundColor: "rgba(38, 166, 154, 0.45)" },
+  { backgroundColor: "rgba(38, 166, 154, 0)" },
+];
+const FLASH_KEYFRAMES_ASK: Keyframe[] = [
+  { backgroundColor: "rgba(239, 83, 80, 0.45)" },
+  { backgroundColor: "rgba(239, 83, 80, 0)" },
+];
+
 const OrderbookRow = memo(function OrderbookRow({
   pxStr,
   sz,
   total,
   depthPct,
   side,
+  flashAt,
 }: {
   pxStr: string;
   sz: number;
   total: number;
   depthPct: number;
   side: Side;
+  flashAt: number;
 }) {
   const isBid = side === "bid";
+  const rowRef = useRef<HTMLDivElement>(null);
+  const lastFlashRef = useRef(0);
+  const animRef = useRef<Animation | null>(null);
+
+  useEffect(() => {
+    if (flashAt === 0) return; // unstamped — never flash
+    if (flashAt === lastFlashRef.current) return; // already played this stamp
+    lastFlashRef.current = flashAt;
+    const el = rowRef.current;
+    if (!el) return;
+    animRef.current?.cancel();
+    animRef.current = el.animate(
+      isBid ? FLASH_KEYFRAMES_BID : FLASH_KEYFRAMES_ASK,
+      { duration: FLASH_DURATION_MS, easing: "ease-out", fill: "none" },
+    );
+  }, [flashAt, isBid]);
+
   return (
-    <div className="relative grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight">
+    <div
+      ref={rowRef}
+      className="relative grid grid-cols-3 gap-2 px-3 py-[3px] text-[12.5px] leading-tight"
+    >
       <span
         aria-hidden
         className={`absolute inset-y-0 left-0 depth-bar ${isBid ? "bg-bid-bar" : "bg-ask-bar"}`}
